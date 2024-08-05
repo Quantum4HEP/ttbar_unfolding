@@ -1,7 +1,7 @@
 import ROOT
-from QUnfold import QUnfoldQUBO, QUnfoldPlotter
 import numpy as np
-from QUnfold.utility import compute_chi2, normalize_response, TH1_to_numpy, TH2_to_numpy
+from qunfold.utils import compute_chi2, normalize_response
+from qunfold.root2numpy import TH2_to_numpy, TH1_to_numpy
 import matplotlib.pyplot as plt
 
 #partendo da le due reco come TH1 di root, ottengo la purity come array numpy
@@ -20,28 +20,23 @@ def get_purity(h_reco_mc, h_reco):
             h_purity.SetBinContent(i, 0)
             h_purity.SetBinError(i, 0)
 
-    purity = TH1_to_numpy(h_purity, overflow=False)
+    purity = TH1_to_numpy(h_purity, overflow=True)
     return purity
 
 
 #partendo da le due reco come TH1 di root, ottengo l,efficiency come array numpy
 def get_efficiency(h_truth_mc, h_truth):
-    h_efficiency = h_truth.Clone("h_efficiency")
-    h_efficiency.Reset()
+    efficiency = []
 
-    for i in range(1, h_truth.GetNbinsX() + 1):
+    for i in range(0, h_truth.GetNbinsX() + 2):
         num = h_truth_mc.GetBinContent(i)
         denom = h_truth.GetBinContent(i)
-        if denom != 0:
-            efficiency = num / denom
-            h_efficiency.SetBinContent(i, efficiency)
-            #print(efficiency)
+        if denom != 0 :
+            efficiency.append(num/denom)
         else:
-            h_efficiency.SetBinContent(i, 0)
-            h_efficiency.SetBinError(i, 0)
+            efficiency.append(1) 
 
-    efficiency = TH1_to_numpy(h_efficiency, overflow=False)
-    return efficiency
+    return np.array(efficiency)
 
 
 #trovare il migliore lambda usando gurobi, prende la response, la truth e la reco, e printa l'andamento
