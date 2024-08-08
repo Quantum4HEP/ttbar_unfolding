@@ -1,106 +1,96 @@
 import ROOT
-from qunfold import QUnfolder, QPlotter
 import numpy as np
-from qunfold.utils import  normalize_response, lambda_optimizer, compute_chi2
 from qunfold.root2numpy import TH2_to_numpy, TH1_to_numpy
-import matplotlib.pyplot as plt
-from analysis_function import get_purity, get_efficiency, gurobi, chi2_fixed_reads, chi2_fixed_toys
-
-myFile_1 = ROOT.TFile.Open("hadpol_particle.root")
-myFile_2 = ROOT.TFile.Open("hadpol_parton.root")
-
-res_root = myFile_1.Get("costhetap_range800_matrix_hadpol") #800
-reco_root = myFile_1.Get("costhetap_range800_particle_hadpol")
-truth_root = myFile_2.Get("costhetap_range800_parton_hadpol") 
-
-reco_mc_root=res_root.ProjectionX("reco_mc")
-truth_mc_root=res_root.ProjectionY("truth_mc")
-#purity and efficiency
-
-#purity = get_purity(reco_mc_root, reco_root)
-#efficiency = get_efficiency(truth_mc_root, truth_root)
-
-#binning
-
-bins = 10
-xrange = np.linspace(start=-1, stop=1, num=bins + 1).tolist()
-binning = np.array([-np.inf] + xrange + [np.inf])  # under/over-flow bins
+from qunfold.utils import normalize_response
+from qunfold import QPlotter
+from utils import *
 
 
-#TH1, TH2 to array
-truth = TH1_to_numpy(truth_root, overflow =True)
-truth_mc = TH1_to_numpy(truth_mc_root, overflow=True)
-reco = TH1_to_numpy(reco_root, overflow =True)
-reco_mc=TH1_to_numpy(reco_mc_root, overflow=True)
-response = TH2_to_numpy(res_root, overflow=True)
-response = normalize_response(TH2_to_numpy(res_root, overflow=True), truth_mc)
+# Load RooUnfold library
+roounfold_lib_path = "../../QUnfold/HEP_deps/RooUnfold/libRooUnfold.so"
+roounfold_error = ROOT.gSystem.Load(roounfold_lib_path)
+if roounfold_error:
+    raise ImportError("RooUnfold was not loaded successfully!")
 
-#find the best lambda and print
-#lam = gurobi(response = response, reco = reco_mc, truth = truth, efficiency = efficiency)#ci dovrei mettere reco*purity, non reco_mc, ma qua è uguale
+# Open input ROOT file
+root_file = ROOT.TFile.Open("ttbar_qunfold.root")
 
-#calculate chi2
-#chi2_fixed_reads(truth = truth, reco = reco_mc, response = response, efficiency = efficiency, n_reads=100, lam=lam)#ci dovrei mettere reco*purity, non reco_mc, ma qua è uguale
+# Read particle-level(=measured) histograms
+dir = "particle"
+th1_measured = root_file.Get(f"{dir}/c_thetap")
+th1_fake = root_file.Get(f"{dir}/c_thetap_fake")
 
-#chi2_fixed_toys(truth = truth, reco = reco_mc, response = response, efficiency = efficiency, n_toys=70, lam=lam)
+# Read parton-level(=truth) histograms
+dir = "parton"
+th1_truth = root_file.Get(f"{dir}/c_thetap_parton")
+th1_miss = root_file.Get(f"{dir}/c_thetap_miss")
 
+# Read Monte Carlo migration matrix (measured X truth)
+dir = "migration"
+th2_migration = root_file.Get(f"{dir}/c_thetap_migration")
 
-"""
+# Get Monte Carlo reco and truth histograms
+th1_reco_mc = th2_migration.ProjectionX()
+th1_truth_mc = th2_migration.ProjectionY()
 
-lam = lambda_optimizer(
-    response=response,
-    measured=reco,
-    truth=truth_mc,
+# Get binning for histograms
+overflow = True
+binning = get_binning(th1_measured, overflow=overflow)
+
+# Convert ROOT objects into numpy arrays
+d = TH1_to_numpy(th1_measured, overflow=overflow)
+fake = TH1_to_numpy(th1_fake, overflow=overflow)
+t = TH1_to_numpy(th1_truth, overflow=overflow)
+miss = TH1_to_numpy(th1_miss, overflow=overflow)
+mu = TH1_to_numpy(th1_reco_mc, overflow=overflow)
+x = TH1_to_numpy(th1_truth_mc, overflow=overflow)
+M = TH2_to_numpy(th2_migration, overflow=overflow)
+
+# Normalize migration matrix by Monte Carlo truth histogram
+M = normalize_response(response=M, truth_mc=x)
+if overflow:
+    M[0, 0] = M[-1, -1] = 1
+
+# Check Σ(column)=1 for each column
+assert np.allclose(np.sum(M, axis=0), 1)
+
+# Chech μ=Mx for Monte Carlo
+assert np.allclose(mu, M @ x)
+
+# Estimate efficiency from Monte Carlo data
+e = estimate_efficiency(reco=mu, miss=miss)
+print("\nEfficiency =", e)
+
+# Estimate purity from Monte Carlo data
+p = estimate_purity(reco=mu, fake=fake)
+print("\nPurity =", p)
+
+# Run unfolding using matrix inversion in RooUnfold
+roo_response = ROOT.RooUnfoldResponse(th1_reco_mc, th1_truth_mc, th2_migration)
+unfolder = ROOT.RooUnfoldInvert("MI", "Matrix Inversion")
+unfolder.SetVerbose(0)
+unfolder.SetResponse(roo_response)
+unfolder.SetMeasured(th1_measured)
+roo_sol = TH1_to_numpy(unfolder.Hunfold(), overflow=overflow)
+
+# Run unfolding computing the inverse matrix in numpy
+np_sol = np.linalg.inv(M) @ d
+
+# Check RooUnfold and numpy MI solutions are the same
+assert np.allclose(roo_sol, np_sol)
+
+# Show results using QUnfold plotter
+dim = len(d)
+qplotter = QPlotter(
+    response=M,
+    measured=d / np.sum(d),
+    truth=t / np.sum(t),
+    unfolded=np_sol / np.sum(np_sol),
+    covariance=np.zeros(shape=(dim, dim)),  # temp
     binning=binning,
+    method="TEMP",
+    ybottom=0.045,
+    normed=False,
 )
-"""
-
-lam = 0
-
-unfolder = QUnfolder(response=response, measured=reco, binning=binning, lam=lam)
-unfolder.initialize_qubo_model()
-sol, cov = unfolder.solve_gurobi_integer()
-
-
-
-factor = truth/truth_mc
-reco_factor = reco_mc/reco
-
-sol = sol*factor*reco_factor
-
-reco = reco * factor*reco_factor
-
-
-"""
-sol = sol/np.sum(sol)
-truth = truth/np.sum(truth)
-reco = reco/np.sum(reco)
-truth_mc = truth_mc/np.sum(truth_mc)
-"""
-#print(sol)
-#print(efficiency)
-
-#sol = sol/efficiency
-
-#print("reco = ", reco)
-#print("truth = ",truth)
-#print("sol = ",sol)
-#cov = cov/np.sum(sol)
-
-plotter = QPlotter(
-    response=response,
-    measured=reco,
-    truth=truth,
-    unfolded=sol,
-    covariance=cov,
-    binning=binning,
-    normed=True,
-    method="SA"
-)
-plotter.save_response("response.png")
-plotter.save_histograms("histo.png")
-
-
-
-
-
-
+qplotter.show_response()
+qplotter.show_histograms()

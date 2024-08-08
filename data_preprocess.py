@@ -7,8 +7,8 @@ input_rootfile_path = "./entangled_ttbar_atlas.root"
 output_rootfile_path = "./ttbar_qunfold.root"
 
 variables = [
-    Variable(name="c_thetap", nbins=15, bounds=(-1, 1)),
-    Variable(name="ttbar_mass", nbins=20, bounds=(300, 2000)),
+    Variable(name="c_thetap", nbins=10, bounds=(-1, 1)),
+    Variable(name="ttbar_mass", nbins=15, bounds=(300, 2000)),
 ]
 #########################################################################################
 
@@ -23,13 +23,14 @@ tree = uproot.open(input_rootfile_path)["particle_level"]
 output_rootfile = ROOT.TFile(output_rootfile_path, "RECREATE")
 particle_dir = output_rootfile.mkdir("particle")
 parton_dir = output_rootfile.mkdir("parton")
+migration_dir = output_rootfile.mkdir("migration")
 
 # Get boolean mask to identify particle and/or parton events
 particle = get_numpy_array(tree=tree, varname="passed_particle_sel", dtype=bool)
 parton = get_numpy_array(tree=tree, varname="passed_parton_sel", dtype=bool)
 
-# Get boolean mask to identify background events
-background = get_numpy_array(tree=tree, varname="eventweight") < 0
+# Get events weight (negative for background process events)
+event_weight = get_numpy_array(tree=tree, varname="eventweight")
 
 for var in variables:
     # Get numpy arrays for particle and parton events
@@ -45,6 +46,7 @@ for var in variables:
         title=var.name,
         binning=binning,
         data=arr_particle,
+        weights=event_weight,
         mask=particle,
     )
     th1_parton = create_histo(
@@ -52,31 +54,17 @@ for var in variables:
         title=var.name_parton,
         binning=binning,
         data=arr_parton,
+        weights=event_weight,
         mask=parton,
     )
 
-    # Create and fill histograms for particle and parton background events
-    th1_bkg_particle = create_histo(
-        name=var.name + "_bkg",
-        title=var.name + "_bkg",
-        binning=binning,
-        data=arr_particle,
-        mask=background,
-    )
-    th1_bkg_parton = create_histo(
-        name=var.name + "_bkg_parton",
-        title=var.name + "_bkg_parton",
-        binning=binning,
-        data=arr_parton,
-        mask=background,
-    )
-
-    # Create and fill histograms for miss and fake events
+    # Create and fill missed and fake events histograms
     th1_miss = create_histo(
         name=var.name + "_miss",
         title=var.name + "_miss",
         binning=binning,
         data=arr_parton,
+        weights=event_weight,
         mask=~particle & parton,
     )
     th1_fake = create_histo(
@@ -84,28 +72,31 @@ for var in variables:
         title=var.name + "_fake",
         binning=binning,
         data=arr_particle,
+        weights=event_weight,
         mask=particle & ~parton,
     )
 
-    # Create and fill response TH2 histogram (measured X truth)
-    response = create_response(
-        name=var.name + "_response",
-        title=var.name + "_response",
+    # Create and fill migration matrix histogram (measured X truth)
+    migration = create_migration(
+        name=var.name + "_migration",
+        title=var.name + "_migration",
         binning=binning,
         data_reco=arr_particle,
         data_truth=arr_parton,
+        weights=event_weight,
         mask=particle & parton,
     )
 
     # Write histograms to output ROOT file
     particle_dir.cd()
     th1_particle.Write()
-    th1_bkg_particle.Write()
-    th1_miss.Write()
     th1_fake.Write()
-    response.Write()
+
     parton_dir.cd()
     th1_parton.Write()
-    th1_bkg_parton.Write()
+    th1_miss.Write()
+
+    migration_dir.cd()
+    migration.Write()
 
 output_rootfile.Close()
