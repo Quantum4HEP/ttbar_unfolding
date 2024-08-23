@@ -27,6 +27,17 @@ def find_binning(x, nbins, bounds):
     return bin_egdes
 
 
+def get_binning(root_file, variable, overflow=True):
+    th1_histo = root_file.Get(f"particle/{variable}")
+    xaxis = th1_histo.GetXaxis()
+    nbins = xaxis.GetNbins()
+    bin_edges = [xaxis.GetBinLowEdge(i) for i in range(1, nbins + 1)]
+    bin_edges += [xaxis.GetBinUpEdge(nbins)]
+    if overflow:
+        bin_edges = [-np.inf] + bin_edges + [np.inf]
+    return np.array(bin_edges)
+
+
 def create_histo(name, title, binning, data, weights, mask):
     nbins = len(binning) - 1
     bins = array("f", binning)
@@ -45,30 +56,19 @@ def create_migration(name, title, binning, data_reco, data_truth, weights, mask)
     return migration
 
 
-def get_binning(th1_histo, overflow=True):
-    xaxis = th1_histo.GetXaxis()
-    nbins = xaxis.GetNbins()
-    bin_edges = [xaxis.GetBinLowEdge(i) for i in range(1, nbins + 1)]
-    bin_edges += [xaxis.GetBinUpEdge(nbins)]
-    if overflow:
-        bin_edges = [-np.inf] + bin_edges + [np.inf]
-    return np.array(bin_edges)
-
-
-def estimate_efficiency(reco, miss):
-    eff = np.ones_like(reco)
-    num = reco
-    den = reco + miss
+def estimate_efficiency(truth, miss):
+    eff = np.ones_like(truth)
+    num = truth - miss
+    den = truth
     nonzero = np.nonzero(den)
     eff[nonzero] = num[nonzero] / den[nonzero]
     return eff
 
 
 def estimate_purity(reco, fake):
-    # maybe wrong, work in progress...
     pur = np.ones_like(reco)
-    num = reco
-    den = reco + fake
+    num = reco - fake
+    den = reco
     nonzero = np.nonzero(den)
     pur[nonzero] = num[nonzero] / den[nonzero]
     return pur

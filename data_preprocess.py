@@ -7,8 +7,8 @@ input_rootfile_path = "./entangled_ttbar_atlas.root"
 output_rootfile_path = "./ttbar_qunfold.root"
 
 variables = [
-    Variable(name="c_thetap", nbins=10, bounds=(-1, 1)),
-    Variable(name="ttbar_mass", nbins=15, bounds=(300, 2000)),
+    Variable(name="c_thetap", nbins=20, bounds=(-1, 1)),
+    Variable(name="ttbar_mass", nbins=25, bounds=(300, 2000)),
 ]
 #########################################################################################
 
