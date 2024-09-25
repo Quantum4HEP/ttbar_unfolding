@@ -8,8 +8,11 @@ output_rootfile_path = "./ttbar_qunfold.root"
 
 variables = [
     Variable(name="c_thetap", nbins=20, bounds=(-1, 1)),
-    Variable(name="ttbar_mass", nbins=25, bounds=(300, 2000)),
+    Variable(name="ttbar_mass", nbins=20, bounds=(300, 2000)),
 ]
+
+# Useful to cut events over a certain energy level
+en_min = 0
 #########################################################################################
 
 
@@ -29,6 +32,7 @@ migration_dir = output_rootfile.mkdir("migration")
 particle = get_numpy_array(tree=tree, varname="passed_particle_sel", dtype=bool)
 parton = get_numpy_array(tree=tree, varname="passed_parton_sel", dtype=bool)
 
+
 # Get events weight (negative for background process events)
 event_weight = get_numpy_array(tree=tree, varname="eventweight")
 
@@ -36,6 +40,8 @@ for var in variables:
     # Get numpy arrays for particle and parton events
     arr_particle = get_numpy_array(tree=tree, varname=var.name)
     arr_parton = get_numpy_array(tree=tree, varname=var.name_parton)
+    arr_mass = get_numpy_array(tree=tree, varname="ttbar_mass_parton")
+    
 
     # Set proper binning according to data distribution
     binning = find_binning(x=arr_parton, nbins=var.nbins, bounds=var.bounds)
@@ -47,7 +53,7 @@ for var in variables:
         binning=binning,
         data=arr_particle,
         weights=event_weight,
-        mask=particle,
+        mask=particle #& (arr_mass>en_min),
     )
     th1_parton = create_histo(
         name=var.name_parton,
@@ -55,7 +61,7 @@ for var in variables:
         binning=binning,
         data=arr_parton,
         weights=event_weight,
-        mask=parton,
+        mask=parton #& (arr_mass>en_min),
     )
 
     # Create and fill missed and fake events histograms
@@ -65,7 +71,7 @@ for var in variables:
         binning=binning,
         data=arr_parton,
         weights=event_weight,
-        mask=~particle & parton,
+        mask=~particle & parton #& (arr_mass>en_min),
     )
     th1_fake = create_histo(
         name=var.name + "_fake",
@@ -73,7 +79,7 @@ for var in variables:
         binning=binning,
         data=arr_particle,
         weights=event_weight,
-        mask=particle & ~parton,
+        mask=particle & ~parton# & (arr_mass>en_min),
     )
 
     # Create and fill migration matrix histogram (measured X truth)
@@ -84,7 +90,7 @@ for var in variables:
         data_reco=arr_particle,
         data_truth=arr_parton,
         weights=event_weight,
-        mask=particle & parton,
+        mask=particle & parton# & (arr_mass>en_min),
     )
 
     # Write histograms to output ROOT file

@@ -1,13 +1,18 @@
 import ROOT
 import numpy as np
 from qunfold.root2numpy import TH2_to_numpy, TH1_to_numpy, TVector_to_numpy
-from qunfold.utils import normalize_response
-from qunfold import QUnfolder, QPlotter
+from qunfold.utils import normalize_response, compute_chi2
+from qunfold import QPlotter
 from utils import *
+import pylab as plt
+from unfolding_functions import roounfolder, qunfolder
 
-#######################################
-# Pick a variable
-variable = "c_thetap"
+##################CONFIGS#####################
+# Pick a variable (ex. c_thetap or ttbar_mass)
+variable = "ttbar_mass"
+
+y_axis_min=0
+y_axis_max=0.14
 #######################################
 
 
@@ -73,36 +78,73 @@ assert np.allclose(np.sum(M, axis=0), 1)
 assert np.allclose(mu, M @ (x - miss) + fake)
 assert np.allclose(mu, M @ (x * efficiency) / purity)
 
-# Run Matrix Inversion unfolding in RooUnfold
-unfolder = ROOT.RooUnfoldInvert("MI", "Matrix Inversion")
-unfolder.SetVerbose(0)
-unfolder.SetResponse(roo_response)
-unfolder.SetMeasured(th1_measured)
-roo_unfolded = TH1_to_numpy(unfolder.Hunfold(), overflow=overflow)
-
 # Run Matrix Inversion unfolding in numpy
-np_unfolded = (1 / efficiency) * (np.linalg.inv(M) @ (d * purity))
+#np_unfolded = (1 / efficiency) * (np.linalg.inv(M) @ (d * purity))
 
-# Check MI_RooUnfold and MI_numpy solutions are the same
-# assert np.allclose(roo_unfolded, np_unfolded)
-
-# Run QUnfold algorithm
+#Passing from migration to response and correcting fake events
 resp = M * efficiency
 meas = d - fake
-qunfolder = QUnfolder(response=resp, measured=meas, binning=binning, lam=0.0)
-qunfolder.initialize_qubo_model()
-sol, cov = qunfolder.solve_gurobi_integer()
 
-# Plot QUnfold results
+#run RooUnfold and QUnfold algorithm
+sol_mi, cov_mi = roounfolder("MI", roo_response, th1_measured, th1_fake)
+sol_ibu, cov_ibu = roounfolder("IBU", roo_response, th1_measured, th1_fake)
+sol_grb, cov_grb = qunfolder("GRB", resp, d, fake, binning)
+
+#calculating error and chi square
+err_mi = np.sqrt(np.diag(cov_mi))
+chi2_mi = compute_chi2(observed=sol_mi, expected=t)
+err_ibu= np.sqrt(np.diag(cov_ibu))
+chi2_ibu = compute_chi2(observed=sol_ibu, expected=t)
+err_grb= np.sqrt(np.diag(cov_grb))[1:-1]
+chi2_grb = compute_chi2(observed=sol_grb[1:-1], expected=t[1:-1])
+
+#Plot just one method and save the response
 qplotter = QPlotter(
     response=M,
     measured=d,
     truth=t,
-    unfolded=sol,
-    covariance=cov,
+    unfolded=sol_grb,
+    covariance=cov_grb,
     binning=binning,
-    method="QUBO",
+    method="GRB",
     norm=True,
 )
 qplotter.save_response(f"{variable}_response.pdf")
-qplotter.save_histograms(f"{variable}_histograms.pdf")
+#qplotter.show_histograms()
+
+
+#plotting and comparing the results
+fig = plt.figure(figsize=(12, 9))
+gs = fig.add_gridspec(nrows=2, ncols=1, height_ratios=[3, 1], hspace=0)
+ax1 = fig.add_subplot(gs[0])
+ax2 = fig.add_subplot(gs[1], sharex=ax1)
+
+QPlotter.histogram_plot(ax=ax1, xedges=binning[1:-1], hist=t[1:-1], label="Truth", norm=True)
+QPlotter.histogram_plot(ax=ax1, xedges=binning[1:-1], hist=d[1:-1], label="Measured", norm=True)
+
+binning = binning[1:-1]
+xlims = (binning[1], binning[-2])
+widths = np.diff(binning)
+xmid = binning[:-1] + 0.5 * widths
+ax1.set_ybound(y_axis_min,y_axis_max)
+
+
+#Add a QPlotter.errorbar_plot for each unfolding method
+QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_grb[1:-1], err=err_grb, xlims=xlims, label="GRB", chi2=chi2_grb, norm=True)
+QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_mi[1:-1], err=err_mi, xlims=xlims, label="MI", chi2=chi2_mi, norm=True)
+QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_ibu[1:-1], err=err_ibu, xlims=xlims, label="IBU", chi2=chi2_ibu, norm=True)
+
+
+#Add a ratio plot
+sol_ratio = sol_grb[1:-1] / t[1:-1]
+err_ratio = err_grb / t[1:-1]
+QPlotter.ratio_plot(ax=ax2, xmid=xmid, ratio=sol_ratio, err=err_ratio, label="GRB", xticks=binning)
+
+fig.savefig(f"{variable}_unfolding.pdf")
+
+
+
+
+
+
+
