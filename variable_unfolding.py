@@ -89,6 +89,7 @@ meas = d - fake
 sol_mi, cov_mi = roounfolder("MI", roo_response, th1_measured, th1_fake)
 sol_ibu, cov_ibu = roounfolder("IBU", roo_response, th1_measured, th1_fake)
 sol_grb, cov_grb = qunfolder("GRB", resp, d, fake, binning)
+#sol_sa, cov_sa = qunfolder("SA", resp, d, fake, binning, num_reads = 100)
 
 #calculating error and chi square
 err_mi = np.sqrt(np.diag(cov_mi))
@@ -97,6 +98,8 @@ err_ibu= np.sqrt(np.diag(cov_ibu))
 chi2_ibu = compute_chi2(observed=sol_ibu, expected=t)
 err_grb= np.sqrt(np.diag(cov_grb))[1:-1]
 chi2_grb = compute_chi2(observed=sol_grb[1:-1], expected=t[1:-1])
+#err_sa = np.sqrt(np.diag(cov_sa))
+#chi2_sa= compute_chi2(observed=sol_sa, expected=t)
 
 #Plot just one method and save the response
 qplotter = QPlotter(
@@ -133,6 +136,7 @@ ax1.set_ybound(y_axis_min,y_axis_max)
 QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_grb[1:-1], err=err_grb, xlims=xlims, label="GRB", chi2=chi2_grb, norm=True)
 QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_mi[1:-1], err=err_mi, xlims=xlims, label="MI", chi2=chi2_mi, norm=True)
 QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_ibu[1:-1], err=err_ibu, xlims=xlims, label="IBU", chi2=chi2_ibu, norm=True)
+#QPlotter.errorbar_plot(ax=ax1, xmid=xmid, hist=sol_sa[1:-1], err=err_sa, xlims=xlims, label="SA", chi2=chi2_sa, norm=True)
 
 
 #Add a ratio plot

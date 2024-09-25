@@ -53,7 +53,7 @@ for var in variables:
         binning=binning,
         data=arr_particle,
         weights=event_weight,
-        mask=particle #& (arr_mass>en_min),
+        mask=particle & (arr_mass>en_min),
     )
     th1_parton = create_histo(
         name=var.name_parton,
@@ -61,7 +61,7 @@ for var in variables:
         binning=binning,
         data=arr_parton,
         weights=event_weight,
-        mask=parton #& (arr_mass>en_min),
+        mask=parton & (arr_mass>en_min),
     )
 
     # Create and fill missed and fake events histograms
@@ -71,7 +71,7 @@ for var in variables:
         binning=binning,
         data=arr_parton,
         weights=event_weight,
-        mask=~particle & parton #& (arr_mass>en_min),
+        mask=~particle & parton & (arr_mass>en_min),
     )
     th1_fake = create_histo(
         name=var.name + "_fake",
@@ -79,7 +79,7 @@ for var in variables:
         binning=binning,
         data=arr_particle,
         weights=event_weight,
-        mask=particle & ~parton# & (arr_mass>en_min),
+        mask=particle & ~parton & (arr_mass>en_min),
     )
 
     # Create and fill migration matrix histogram (measured X truth)
@@ -90,7 +90,7 @@ for var in variables:
         data_reco=arr_particle,
         data_truth=arr_parton,
         weights=event_weight,
-        mask=particle & parton# & (arr_mass>en_min),
+        mask=particle & parton & (arr_mass>en_min),
     )
 
     # Write histograms to output ROOT file
