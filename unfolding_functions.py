@@ -26,7 +26,7 @@ def qunfolder(method, response, measured, fake, binning, num_reads=None, lam=0.0
     elif method == "SA":
         sol, cov = qunfolder.solve_simulated_annealing(num_reads=num_reads, num_toys=None)
     elif method == "HYB":
-        sol, cov = qunfolder.solve_hybrud_sampler()
+        sol, cov = qunfolder.solve_hybrid_sampler()
     elif method == "QA":
         qunfolder.set_quantum_device()
         qunfolder.set_graph_embedding()
