@@ -24,7 +24,7 @@ def qunfolder(method, response, measured, fake, binning, num_reads=None, lam=0.0
     if method == "GRB":
         sol, cov = qunfolder.solve_gurobi_integer()
     elif method == "SA":
-        sol, cov = qunfolder.solve_simulate_annealing(num_reads=num_reads, num_toys=None)
+        sol, cov = qunfolder.solve_simulated_annealing(num_reads=num_reads, num_toys=None)
     elif method == "HYB":
         sol, cov = qunfolder.solve_hybrud_sampler()
     elif method == "QA":
