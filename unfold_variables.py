@@ -117,3 +117,21 @@ for variable in ["c_thetap", "ttbar_mass"]:
         norm=False
     )
     qplotter.show_histograms()
+
+    # Run the QUnfold algorithm using D-Wave hybrid sampler
+    # D-Wave account configuration using valid API token is required
+    # See https://docs.ocean.dwavesys.com/en/stable/overview/sapi.html#create-a-configuration-file
+    qunfolder = QUnfolder(
+        response=response, measured=measured, binning=binning, lam=0.0)
+    unfolded, covariance = qunfolder.solve_hybrid_sampler()
+    qplotter = QPlotter(
+        response=response,
+        measured=measured,
+        truth=truth,
+        unfolded=unfolded,
+        covariance=covariance,
+        binning=binning,
+        method="HYB",
+        norm=False
+    )
+    qplotter.show_histograms()
