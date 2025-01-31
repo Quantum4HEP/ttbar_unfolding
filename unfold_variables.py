@@ -82,6 +82,26 @@ for variable in ["c_thetap", "ttbar_mass"]:
     )
     qplotter.show_histograms()
 
+    # Run Singular Values Decomposition (SVD) unfolding
+    unfolder = ROOT.RooUnfoldSvd(roo_response, th1_measured)
+    unfolder.SetKterm(2)
+    unfolder.SetVerbose(0)
+    roo_unfolded = unfolder.Hunfold()
+    roo_covariance = unfolder.Eunfold()
+    unfolded = TH1_to_numpy(roo_unfolded, overflow=overflow)
+    covariance = TMatrix_to_numpy(roo_covariance)
+    qplotter = QPlotter(
+        response=response,
+        measured=measured,
+        truth=truth,
+        unfolded=unfolded,
+        covariance=covariance,
+        binning=binning,
+        method="SVD",
+        norm=False
+    )
+    qplotter.show_histograms()
+
     # Run the QUnfold algorithm using Gurobi solver
     qunfolder = QUnfolder(
         response=response, measured=measured, binning=binning, lam=0.0)
